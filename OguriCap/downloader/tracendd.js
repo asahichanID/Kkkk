@@ -4,6 +4,7 @@ import { getYtmp4Thumb } from '../lib/mediahelper.js'
 import {
   apiYoutubeDownload,
   apiTiktokDownload,
+  apiTiktokScrapDownload,
   apiSpotifySearch,
   apiSpotifyDownload,
   apiInstagramDownload
@@ -255,7 +256,7 @@ export const tiktok = async (naze, m, text) => {
     m.react('⏳')
 
     const uma = getUmaQuote()
-    const { result } = await apiTiktokDownload(text, { withMetadata: true })
+    const { result } = await apiTiktokScrapDownload(text, { withMetadata: true })
     
     if (!result)
       return m.reply('❌ Video tidak ditemukan')
@@ -562,7 +563,7 @@ export const ttmp3 = async (naze, m, text) => {
   m.react('⏳')
 
   try {
-    const { result } = await apiTiktokDownload(text, { withMetadata: false })
+    const { result } = await apiTiktokScrapDownload(text, { withMetadata: false })
     const audioUrl = result?.download?.music || result?.download?.audio || result?.music?.playUrl || result?.audio
 
     if (!audioUrl) {
