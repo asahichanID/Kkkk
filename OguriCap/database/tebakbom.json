@@ -1,0 +1,19 @@
+{
+  "leaderboard": {
+    "player@s.whatsapp.net": {
+      "id": "player@s.whatsapp.net",
+      "name": "Player",
+      "score": 1500,
+      "gamesCount": 1,
+      "lastUpdated": 1789177913120
+    }
+  },
+  "claimedCodes": {
+    "TB-1500-1A2B3C4D5E": {
+      "jid": "player@s.whatsapp.net",
+      "score": 1500,
+      "claimedAt": 1789177913120
+    }
+  },
+  "activeCodes": {}
+}

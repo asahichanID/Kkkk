@@ -1,0 +1,16 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# WhatsApp Session & User Database (Penting: agar tidak tertimpa saat git pull)
+OguriCap/nazedev/
+nazedev/
+database.json
+OguriCap/database.json
+OguriCap/database/locked_groups.json
+database/locked_groups.json
