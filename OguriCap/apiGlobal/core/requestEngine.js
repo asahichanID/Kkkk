@@ -66,14 +66,17 @@ export async function runProviders(serviceName, providers, options = {}) {
 		const maxRetry = provider.retry ?? defaultRetry;
 
 		for (let attempt = 0; attempt <= maxRetry; attempt++) {
+			const startAt = Date.now();
 			try {
 				const raw = await runWithTimeout(provider.run, timeoutMs, provider.name);
-				logger.attempt(serviceName, provider.name, true);
+				const elapsed = Date.now() - startAt;
+				logger.attempt(serviceName, provider.name, true, '', elapsed);
 				return { raw, providerName: provider.name };
 			} catch (err) {
+				const elapsed = Date.now() - startAt;
 				const message = err?.message || String(err);
 				attempts.push({ providerName: provider.name, attempt, message });
-				logger.attempt(serviceName, provider.name, false, message);
+				logger.attempt(serviceName, provider.name, false, message, elapsed);
 			}
 		}
 	}
