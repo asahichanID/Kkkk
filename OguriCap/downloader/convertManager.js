@@ -79,22 +79,23 @@ function cleanupCache() {
 cleanupCache()
 
 // Bersihkan setiap 10 menit
-setInterval(() => {
+const cacheTimer = setInterval(() => {
     try {
         cleanupCache()
     } catch (e) {
         console.error('❌ Cleanup MP3 Cache:', e)
     }
 }, 10 * 60 * 1000)
+if (typeof cacheTimer?.unref === 'function') {
+    cacheTimer.unref()
+}
 
 
 export async function convertToMp3(
     url,
     filename = 'Audio.mp3'
 ) {
-
     const id = hash(url)
-
     const cacheFile = path.join(
         CACHE_DIR,
         `${id}.mp3`
@@ -117,25 +118,31 @@ export async function convertToMp3(
     )
 
     try {
-
-        // Kalau memang MP3 asli, cukup download lalu simpan cache
-        if (detectExt(url) === 'mp3') {
-
+        // Coba download buffer secara langsung dengan fast keep-alive stream
+        try {
             const buffer = await getBuffer(url)
+            if (buffer && Buffer.isBuffer(buffer) && buffer.length > 5000) {
+                const isId3 = buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33
+                const isMp3Sync = buffer[0] === 0xFF && (buffer[1] & 0xE0) === 0xE0
+                const isAac = buffer[0] === 0xFF && (buffer[1] & 0xF6) === 0xF0
+                const isOgg = buffer[0] === 0x4F && buffer[1] === 0x67 && buffer[2] === 0x67 && buffer[3] === 0x53
+                const isM4a = buffer.subarray(4, 8).toString() === 'ftyp'
+                const isAudioName = filename.toLowerCase().endsWith('.mp3') || filename.toLowerCase().endsWith('.m4a')
 
-            if (!buffer || buffer.length < 1000)
-                throw new Error('Media gagal diunduh.')
-
-            fs.writeFileSync(cacheFile, buffer)
-
-            return {
-                buffer,
-                filename: filename.replace(/\.\w+$/i, '.mp3')
+                // Jika sudah merupakan audio stream yang valid, kirim langsung tanpa re-encode
+                if (isId3 || isMp3Sync || isAac || isOgg || isM4a || isAudioName) {
+                    fs.writeFileSync(cacheFile, buffer)
+                    return {
+                        buffer,
+                        filename: filename.replace(/\.\w+$/i, '.mp3')
+                    }
+                }
             }
-
+        } catch (_) {
+            /* Lanjut ke FFmpeg fallback */
         }
 
-        // Selain MP3, FFmpeg langsung stream dari URL
+        // Jika memerlukan transcoding / stream kompleks, gunakan FFmpeg
         await execAsync(
             `ffmpeg -hide_banner -loglevel error -y \
 -user_agent "Mozilla/5.0" \
@@ -160,7 +167,6 @@ export async function convertToMp3(
         }
 
     } finally {
-
         try {
             if (fs.existsSync(tmp))
                 fs.rmSync(tmp, {
@@ -168,9 +174,7 @@ export async function convertToMp3(
                     force: true
                 })
         } catch {}
-
     }
-
 }
 /**
  * Convert Animated WebP Sticker menjadi MP4.

@@ -33,7 +33,9 @@ const WHITELIST = [
 const errorCache = {};
 
 const unsafeAgent = new https.Agent({
-	rejectUnauthorized: false
+	rejectUnauthorized: false,
+	keepAlive: true,
+	maxSockets: 60
 });
 
 const customHttpsAgent = new https.Agent({
@@ -76,21 +78,30 @@ const getBuffer = async (url, options = {}) => {
 		axiosResponse = await axios.get(url, {
 			headers: {
 				'DNT': 1,
-				'Upgrade-Insecure-Request': 1
+				'Upgrade-Insecure-Request': 1,
+				'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
 			},
 			responseType: 'arraybuffer',
 			httpsAgent: unsafeAgent,
+			timeout: 12000,
 			...options
 		})
-		bufferData = axiosResponse.data;
+		bufferData = Buffer.from(axiosResponse.data);
 		return bufferData;
 	} catch (e) {
 		try {
-			fetchResponse = await fetch(url, { agent: unsafeAgent });
-			bufferData = await fetchResponse.buffer()
-			return bufferData
-		} catch (e) {
-			return e
+			fetchResponse = await fetch(url, {
+				agent: unsafeAgent,
+				headers: {
+					'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+				},
+				timeout: 12000
+			});
+			const arrayBuf = await fetchResponse.arrayBuffer();
+			bufferData = Buffer.from(arrayBuf);
+			return bufferData;
+		} catch (err) {
+			throw err;
 		}
 	} finally {
 		bufferData = null;

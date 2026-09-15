@@ -256,21 +256,21 @@ async function engineLoader(videoUrl, isAudio = true, targetFormat = '720', time
 
 /**
  * Ultra-Fast Multi-Engine Race Resolver
- * Menjalankan engine-engine tercepat secara paralel. Siapa yang selesai duluan (sub-second) langsung menang!
+ * Menjalankan engine-engine tercepat secara paralel dengan prioritas direct CDN stream stabil.
  */
 async function resolveFastMediaRace(videoUrl, videoId, isAudio = true, format = 'mp3', timeout = 12000) {
   const engines = [];
 
-  // Engine 1: Direct Stream CDN (Sangat cepat ~500ms - 1.2s)
-  engines.push(engineDirectStream(videoUrl, isAudio, format, Math.min(timeout, 6000)));
-
-  // Engine 2: Savetube Engine (Jika ada videoId)
+  // Engine 1: Savetube Engine (Direct static CDN MP3/MP4, sangat stabil & cepat)
   if (videoId) {
-    engines.push(engineSavetube(videoId, isAudio, format, Math.min(timeout, 6000)));
+    engines.push(engineSavetube(videoId, isAudio, format, Math.min(timeout, 5000)));
   }
 
-  // Engine 3: Loader Fast Engine (Pelengkap)
-  engines.push(engineLoader(videoUrl, isAudio, format, Math.min(timeout, 6500)));
+  // Engine 2: Loader Fast Engine (Direct conversion stream)
+  engines.push(engineLoader(videoUrl, isAudio, format, Math.min(timeout, 6000)));
+
+  // Engine 3: Direct Stream CDN (Neoxr Stream fallback)
+  engines.push(engineDirectStream(videoUrl, isAudio, format, Math.min(timeout, 6000)));
 
   // Menangkan respons tercepat yang berhasil
   return await Promise.any(engines);
