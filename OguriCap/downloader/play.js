@@ -5,7 +5,12 @@ import { getBuffer } from '../lib/function.js'
 import { getPlayThumb } from '../lib/mediahelper.js'
 import { playQuote } from '../lib/mediaquotes.js'
 import { convertToMp3 } from './convertManager.js'
-import { apiYoutubeAudio, apiYoutubeSearch } from '../apiGlobal/index.js'
+import {
+  apiYoutubeAudio,
+  apiYoutubeSearch,
+  apiYoutubeScrapAudio,
+  apiYoutubeScrapSearch
+} from '../apiGlobal/index.js'
 
 
 export const play = async (naze, m, text, prefix, command, db) => {
@@ -105,7 +110,7 @@ ${prefix + command} bloodline`
     // CARI LAGU
     // ====================
     if (!hasil && !text.startsWith('https://') && !text.startsWith('http://')) {
-      const { result } = await apiYoutubeSearch(text)
+      const { result } = await apiYoutubeScrapSearch(text)
 
         const videos = (result || []).slice(0, 20).map(v => ({
           title: v.title ?? '-',
@@ -133,7 +138,7 @@ ${prefix + command} bloodline`
 		const laguPertama = videos[0]
 		if (!laguPertama?.videoId) return
 
-		const { result } = await apiYoutubeAudio(laguPertama.url)
+		const { result } = await apiYoutubeScrapAudio(laguPertama.url)
 
 		const audio = await convertToMp3(
 			result.download,
@@ -201,7 +206,7 @@ text:
     // URL LANGSUNG
     // ====================
     if (!hasil && (text.startsWith('https://') || text.startsWith('http://'))) {
-      const { result } = await apiYoutubeSearch(text)
+      const { result } = await apiYoutubeScrapSearch(text)
         hasil = result?.[0]
     }
 
@@ -213,7 +218,7 @@ text:
     // ====================
     // DOWNLOAD
     // ====================
-const { result } = await apiYoutubeAudio(hasil.url)
+const { result } = await apiYoutubeScrapAudio(hasil.url)
 
 if (!result?.download)
     return m.reply('❌ Audio tidak ditemukan')

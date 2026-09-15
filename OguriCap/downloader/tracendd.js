@@ -3,6 +3,7 @@ import { getYtmp4Thumb } from '../lib/mediahelper.js'
 
 import {
   apiYoutubeDownload,
+  apiYoutubeScrapDownload,
   apiTiktokDownload,
   apiTiktokScrapDownload,
   apiSpotifySearch,
@@ -23,7 +24,7 @@ export const ytmp3 = async (naze, m, text) => {
   m.react('⏳')
 
   try {
-    const { result } = await apiYoutubeDownload(text, 'mp3')
+    const { result } = await apiYoutubeScrapDownload(text, 'mp3')
 
     if (!result?.download) {
       return m.reply('❌ Audio tidak ditemukan')
@@ -184,7 +185,7 @@ untuk Trainer Premium.
 
     let result
     try {
-      const res = await apiYoutubeDownload(url, quality)
+      const res = await apiYoutubeScrapDownload(url, quality)
       result = res.result
     } catch {
       return m.reply('❌ API gagal dihubungi')

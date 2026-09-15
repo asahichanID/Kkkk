@@ -24,6 +24,7 @@
 
 // ---- Downloader -----------------------------------------------------
 export { apiYoutubeAudio, apiYoutubeDownload, apiYoutubeSearch } from './services/downloader/youtube.js';
+export { apiYoutubeScrapSearch, apiYoutubeScrapAudio, apiYoutubeScrapDownload } from './services/downloader/yt-scrap.js';
 export { apiPlay } from './services/downloader/play.js';
 export { apiTiktokDownload } from './services/downloader/tiktok.js';
 export { apiTiktokScrapDownload } from './services/downloader/tiktok-scrap.js';
