@@ -67,14 +67,15 @@ reloadHandler();
 async function dispatchNazeHandler(naze, m, msg, store) {
 	// 🛡️ ANTI SELF-REPLY: Jangan pernah memproses pesan yang dikirim oleh bot ini sendiri
 	if (isBotSentMessage(m.id || msg?.key?.id)) return;
-	if (m.isBot && m.fromMe) return;
+	const hasActiveMath = Boolean(global.__oguriMathSessionManager?.hasSession(m.chat));
+	if (!hasActiveMath && m.isBot && m.fromMe) return;
 	const isButtonAction = Boolean(
 		m.interactiveId?.startsWith('lock_') ||
 		m.interactiveId?.startsWith('unlock_') ||
 		m.body?.startsWith('lock_') ||
 		m.body?.startsWith('unlock_')
 	);
-	if (m.fromMe && !m.isCmd && !isButtonAction) return;
+	if (!hasActiveMath && m.fromMe && !m.isCmd && !isButtonAction) return;
 
 	const slot = await acquireCommandSlot(m.sender, m.chat, m);
 	if (!slot || slot.ok === false) return;
@@ -535,7 +536,8 @@ async function MessagesUpsert(naze, message, store) {
 		// 🛡️ ANTI SELF-REPLY / DOUBLE COMMAND:
 		// Abaikan seluruh pesan yang dikirim oleh proses bot ini atau bot Baileys
 		if (isBotSentMessage(msg.key?.id)) return;
-		if (msg.key?.fromMe && (
+		const hasActiveMath = Boolean(global.__oguriMathSessionManager?.hasSession(msg.key?.remoteJid));
+		if (!hasActiveMath && msg.key?.fromMe && (
 			msg.key.id?.startsWith('3EB0') ||
 			msg.key.id?.includes('STARFALL') ||
 			msg.key.id?.startsWith('BAE5') ||

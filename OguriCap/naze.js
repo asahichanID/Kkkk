@@ -135,6 +135,7 @@ import { isLocked } from './group/kunci.js';
 import { absoluteGuard, GUARD_CONFIG } from './src/guard.js'
 import { getKhodam, buildKhodamText } from './game/khodamData.js'
 import { smeme, smemec } from './lib/sticker/smeme.js'
+import { startMathGame, handleMathAnswer, mathSessionManager } from './game/math/math.js'
 import { renderBrat } from './lib/sticker/brat.js'
 import { stickerToVideo } from './lib/sticker/stickerEngine/index.js'
 import { handleUserLimit, OGURI_LIMIT_MESSAGE, isLimitedCommand } from './lib/limit.js'
@@ -247,7 +248,11 @@ const naze = async (naze, m, msg, store) => {
 		const isOwnerEval = isCreator && (body.startsWith('>') || body.startsWith('<') || body.startsWith('$'));
 
 		// 🛡️ CRITICAL GUARD: Cegah bot merespons pesan keluar dari bot itu sendiri (anti self-reply loop)
-		if (isBotSentMessage(m.id || m.key?.id) || (m.fromMe && m.isBot)) {
+		if (isBotSentMessage(m.id || m.key?.id)) {
+			return;
+		}
+		const hasActiveMath = Boolean(mathSessionManager?.hasSession(m.chat));
+		if (!hasActiveMath && (m.fromMe && m.isBot)) {
 			return;
 		}
 		const isLockAction = Boolean(
@@ -256,8 +261,8 @@ const naze = async (naze, m, msg, store) => {
 			(body && (body.startsWith('lock_') || body.startsWith('unlock_')))
 		);
 
-		// Jika pesan dari akun bot sendiri (fromMe) tapi bukan command ber-prefix resmi atau eval owner, buang total!
-		if (m.key.fromMe && !isCmd && !isOwnerEval && !isLockAction) {
+		// Jika pesan dari akun bot sendiri (fromMe) tapi bukan command ber-prefix resmi atau eval owner, buang total (kecuali ada kuis math aktif)!
+		if (!hasActiveMath && m.key.fromMe && !isCmd && !isOwnerEval && !isLockAction) {
 			return;
 		}
 		
@@ -678,6 +683,13 @@ const naze = async (naze, m, msg, store) => {
 			}
 		}
 		
+		// 🧮 Math Game Modular Answer Handler
+		// Support dengan reply (quote) maupun tanpa reply langsung di chat
+		if (mathSessionManager.hasSession(m.chat)) {
+			const mathHandled = await handleMathAnswer(naze, m, budy, body, db);
+			if (mathHandled) return;
+		}
+
 		// ============================================================
 		// GAME — SISTEM JAWABAN BARU (audit fix)
 		// - Tidak lagi wajib reply/quoted ke pesan soal (pakai session per chat)
@@ -685,7 +697,7 @@ const naze = async (naze, m, msg, store) => {
 		// - Jawaban benar: baru reply + reward
 		// - Normalisasi jawaban lebih fleksibel (lowercase, trim, unicode, simbol)
 		// ============================================================
-		const games = { tebaklirik, tekateki, tebaklagu, tebakkata, kuismath, susunkata, tebakkimia, caklontong, tebakangka, tebaknegara, tebakgambar, tebakbendera }
+		const games = { tebaklirik, tekateki, tebaklagu, tebakkata, susunkata, tebakkimia, caklontong, tebakangka, tebaknegara, tebakgambar, tebakbendera }
 		for (let gameName in games) {
 			let game = games[gameName];
 			let id = iGame(game, m.chat);
@@ -5366,24 +5378,7 @@ break
 			}
 			break
 			case 'kuismath': case 'math': {
-				const { genMath, modes } = await import('./lib/math.js');
-				const inputMode = ['noob', 'easy', 'medium', 'hard','extreme','impossible','impossible2'];
-				if (iGame(kuismath, m.chat)) return m.reply('Masih Ada Sesi Yang Belum Diselesaikan!')
-				if (!text) return m.reply(`Mode: ${Object.keys(modes).join(' | ')}\nExample penggunaan: ${prefix}math medium`)
-				if (!inputMode.includes(text.toLowerCase())) return m.reply('Mode tidak ditemukan!')
-				let result = await genMath(text.toLowerCase())
-				let { key } = await m.reply(`*Berapa hasil dari: ${result.soal.toLowerCase()}*?\n\nWaktu : ${(result.waktu / 1000).toFixed(2)} detik`)
-				kuismath[m.chat + key.id] = {
-					jawaban: result.jawaban,
-					mode: text.toLowerCase(),
-					id: key.id
-				}
-				setTimeout(() => {
-				if (rdGame(kuismath, m.chat, key.id)) {
-					m.reply('Waktu Habis\nJawaban: ' + kuismath[m.chat + key.id].jawaban)
-					delete kuismath[m.chat + key.id]
-				}
-				}, result.waktu)
+				await startMathGame(naze, m, args, db);
 			}
 			break
 			case 'ulartangga': case 'snakeladder': case 'ut': {
