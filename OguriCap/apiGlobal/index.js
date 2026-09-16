@@ -69,7 +69,7 @@ export {
 	apiSearchNpm,
 	apiSearchTenor
 } from './services/search/search.js';
-export { apiPinterestSearch } from './services/search/pinterest.js';
+export { apiPinterestSearch, apiPinterestScrapSearch } from './services/search/pint-scrap.js';
 
 // ---- Random content ---------------------------------------------------
 export {

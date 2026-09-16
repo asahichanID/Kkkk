@@ -1306,29 +1306,97 @@ async function Solving(naze, store) {
 	}
 	
 	naze.sendCarouselMsg = async (jid, body = '', footer = '', cards = [], options = {}) => {
-		async function getImageMsg(url) {
-			const { imageMessage } = await generateWAMessageContent({ image: { url } }, { upload: naze.waUploadToServer });
-			return imageMessage;
+		if (jid.endsWith('@g.us') && store) {
+			try {
+				store.groupMetadata = store.groupMetadata || {}
+				store.groupMetadata[jid] = await naze.groupMetadata(jid)
+			} catch (e) {
+				// Biarkan lanjut jika gagal refresh grup metadata
+			}
 		}
-		const cardPromises = cards.map(async (a) => {
-			const imageMessage = await getImageMsg(a.url);
-			return {
-				header: {
-					imageMessage: imageMessage,
-					hasMediaAttachment: true
-				},
-				body: { text: a.body },
-				footer: { text: a.footer },
-				nativeFlowMessage: {
-					buttons: a.buttons.map(b => ({
-						name: b.name,
-						buttonParamsJson: JSON.stringify(b.buttonParamsJson ? JSON.parse(b.buttonParamsJson) : '')
-					}))
+
+		async function getCardMedia(a) {
+			const urlsToTry = [
+				a.url,
+				a.asli,
+				a.hd,
+				a.image?.url || (typeof a.image === 'string' ? a.image : null),
+				a.video?.url || (typeof a.video === 'string' ? a.video : null)
+			].filter(Boolean)
+
+			if (a.video && typeof a.video === 'object' && !a.video.url) {
+				try {
+					const msgContent = await generateWAMessageContent({ video: a.video }, { upload: naze.waUploadToServer })
+					return {
+						videoMessage: msgContent.videoMessage || null,
+						imageMessage: null,
+						hasMediaAttachment: Boolean(msgContent.videoMessage)
+					}
+				} catch (err) {
+					console.error('[CAROUSEL] Gagal upload video buffer kartu:', err?.message || err)
 				}
-			};
-		});
-		
-		const cardResults = await Promise.all(cardPromises);
+			}
+
+			if (a.image && typeof a.image === 'object' && !a.image.url) {
+				try {
+					const msgContent = await generateWAMessageContent({ image: a.image }, { upload: naze.waUploadToServer })
+					return {
+						imageMessage: msgContent.imageMessage || null,
+						videoMessage: null,
+						hasMediaAttachment: Boolean(msgContent.imageMessage)
+					}
+				} catch (err) {
+					console.error('[CAROUSEL] Gagal upload image buffer kartu:', err?.message || err)
+				}
+			}
+
+			for (const u of urlsToTry) {
+				try {
+					const mediaType = a.type === 'video' || (typeof u === 'string' && /\.(mp4|mov|avi|mkv)(\?|#|$)/i.test(u)) ? 'video' : 'image'
+					const msgContent = await generateWAMessageContent({ [mediaType]: { url: u } }, { upload: naze.waUploadToServer })
+					return {
+						imageMessage: msgContent.imageMessage || null,
+						videoMessage: msgContent.videoMessage || null,
+						hasMediaAttachment: Boolean(msgContent.imageMessage || msgContent.videoMessage)
+					}
+				} catch (err) {
+					// Coba url alternatif berikutnya
+				}
+			}
+
+			console.error('[CAROUSEL] Semua URL media kartu gagal di-upload:', urlsToTry)
+			return null
+		}
+
+		const cardPromises = cards.map(async (a) => {
+			const media = await getCardMedia(a)
+			if (!media) return null
+
+			const buttons = Array.isArray(a.buttons) ? convertLegacyButtons(a.buttons) : []
+
+			return proto.Message.InteractiveMessage.create({
+				header: proto.Message.InteractiveMessage.Header.create({
+					title: a.title || '',
+					subtitle: a.subtitle || '',
+					hasMediaAttachment: media.hasMediaAttachment,
+					imageMessage: media.imageMessage,
+					videoMessage: media.videoMessage
+				}),
+				body: proto.Message.InteractiveMessage.Body.create({ text: a.body || '' }),
+				footer: proto.Message.InteractiveMessage.Footer.create({ text: a.footer || '' }),
+				nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
+					buttons
+				})
+			})
+		})
+
+		const rawCardResults = await Promise.all(cardPromises)
+		const cardResults = rawCardResults.filter(Boolean)
+
+		if (cardResults.length === 0) {
+			throw new Error('Semua media kartu carousel gagal di-generate.')
+		}
+
 		const msg = await generateWAMessageFromContent(jid, {
 			viewOnceMessage: {
 				message: {
@@ -1337,17 +1405,45 @@ async function Solving(naze, store) {
 						deviceListMetadataVersion: 2
 					},
 					interactiveMessage: proto.Message.InteractiveMessage.create({
-						body: proto.Message.InteractiveMessage.Body.create({ text: body }),
-						footer: proto.Message.InteractiveMessage.Footer.create({ text: footer }),
+						body: proto.Message.InteractiveMessage.Body.create({ text: body || '' }),
+						footer: proto.Message.InteractiveMessage.Footer.create({ text: footer || '' }),
 						carouselMessage: proto.Message.InteractiveMessage.CarouselMessage.create({
 							cards: cardResults,
 							messageVersion: 1
-						})
+						}),
+						contextInfo: convertContext(options?.contextInfo || {}, options, options?.mentions || [])
 					})
 				}
 			}
-		}, {});
-		const hasil = await naze.relayMessage(msg.key.remoteJid, msg.message, { messageId: msg.key.id });
+		}, { userJid: naze.user?.id, quoted: options?.quoted })
+
+		const relayOpts = {
+			messageId: msg.key.id,
+			additionalNodes: [{
+				tag: 'biz',
+				attrs: {},
+				content: [{
+					tag: 'interactive',
+					attrs: {
+						type: 'native_flow',
+						v: '1'
+					},
+					content: [{
+						tag: 'native_flow',
+						attrs: {
+							v: '9',
+							name: 'mixed'
+						}
+					}]
+				}]
+			}, ...(options?.ai ? [{ attrs: { biz_bot: '1' }, tag: 'bot' }] : [])]
+		}
+
+		if (process.env.NAZE_RELAY_DEBUG === '1') {
+			console.log(`[NAZE_RELAY_DEBUG] sendCarouselMsg -> jid=${jid} cardsCount=${cardResults.length} messageId=${msg.key.id}`)
+		}
+
+		const hasil = await naze.relayMessage(msg.key.remoteJid, msg.message, relayOpts)
 		return hasil
 	}
 	

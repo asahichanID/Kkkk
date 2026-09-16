@@ -52,6 +52,10 @@ export const GUARD_CONFIG = {
     cooldown: 80000,   // 80 detik
     lockTimeout: 90000 // 90 detik safeguard timeout lock
   },
+  pinterest: {
+    cooldown: 10000,   // 10 detik (permintaan user agar tidak menunggu lama)
+    lockTimeout: 20000  // 20 detik safeguard timeout lock
+  },
   profile: {
     cooldown: 3000,    // 3 detik
     lockTimeout: 15000 // 15 detik safeguard timeout lock

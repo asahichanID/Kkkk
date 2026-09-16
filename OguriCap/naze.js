@@ -4282,7 +4282,7 @@ case 'pin': {
     if (!text) return m.reply(`Contoh: ${prefix + command} hu tao`)
 
     
-    const guard = await absoluteGuard(m.sender, 'pinterest', 'banner', m)
+    const guard = await absoluteGuard(m.sender, 'pinterest', 'pinterest', m)
     if (!guard.ok) return // ❌ DITOLAK: cooldown / masih proses / antrian
     try {
     // 🛡️ === AKHIR PENANDAWALAN, DI BAWAH INI 100% PUNYA KITA TIDAK DIUBAH ===
@@ -4353,35 +4353,48 @@ case 'pin': {
 
         if (daftarBersih.length === 0) return m.reply('⚠️ Format gambar tidak didukung WhatsApp')
 
-        await naze.sendCarouselMsg(
-            m.chat,
-            `📌 HASIL PINTEREST\n🔎 Pencarian : ${kataKunciAsli}\n🖼️ Ditemukan ${daftarBersih.length} hasil terbaik`,
-            `🤖 ${global.botname} • Powered by Shiro`,
-            daftarBersih.map((item, urut) => ({
-                url: item.tampil,
-                body: `📌 Pinterest\n🖼️ Gambar ke‑${urut+1} / ${daftarBersih.length}${item.pinAsli ? '\n✅ ID Asli Ditemukan' : ''}`,
-                footer: global.botname,
-                buttons: [
-                    {
-                        name: "cta_url",
-                        buttonParamsJson: JSON.stringify({
-                            display_text: item.pinAsli ? "📍 BUKA PIN ASLI" : "🔍 BUKA DI PINTEREST",
-                            url: item.bukaPin, merchant_url: item.bukaPin
-                        })
-                    },
-                    {
-                        name: "cta_url",
-                        buttonParamsJson: JSON.stringify({
-                            display_text: "🖼️ LIHAT HD",
-                            url: item.hd, merchant_url: item.hd
-                        })
-                    }
-                ]
-            })),
-            { quoted: m }
-        )
+        try {
+            await naze.sendCarouselMsg(
+                m.chat,
+                `📌 HASIL PINTEREST\n🔎 Pencarian : ${kataKunciAsli}\n🖼️ Ditemukan ${daftarBersih.length} hasil terbaik`,
+                `🤖 ${global.botname} • Powered by Shiro`,
+                daftarBersih.map((item, urut) => ({
+                    url: item.tampil,
+                    asli: item.asli,
+                    hd: item.hd,
+                    body: `📌 Pinterest\n🖼️ Gambar ke‑${urut+1} / ${daftarBersih.length}${item.pinAsli ? '\n✅ ID Asli Ditemukan' : ''}`,
+                    footer: global.botname,
+                    buttons: [
+                        {
+                            name: "cta_url",
+                            buttonParamsJson: JSON.stringify({
+                                display_text: item.pinAsli ? "📍 BUKA PIN ASLI" : "🔍 BUKA DI PINTEREST",
+                                url: item.bukaPin, merchant_url: item.bukaPin
+                            })
+                        },
+                        {
+                            name: "cta_url",
+                            buttonParamsJson: JSON.stringify({
+                                display_text: "🖼️ LIHAT HD",
+                                url: item.hd, merchant_url: item.hd
+                            })
+                        }
+                    ]
+                })),
+                { quoted: m }
+            )
 
-        console.log('✅ CAROUSEL SEMPURNA | GUARDIAN AKTIF')
+            console.log('✅ CAROUSEL SEMPURNA | GUARDIAN AKTIF')
+        } catch (errCarousel) {
+            console.error('❌ Gagal kirim carousel Pinterest, fallback ke gambar tunggal:', errCarousel?.message || errCarousel)
+            const pertama = daftarBersih[0]
+            if (pertama) {
+                await naze.sendMessage(m.chat, {
+                    image: { url: pertama.asli || pertama.tampil },
+                    caption: `📌 *HASIL PINTEREST*\n🔎 Pencarian: *${kataKunciAsli}*\n🖼️ Ditemukan: ${daftarBersih.length} gambar\n\n🔗 ${pertama.bukaPin}`
+                }, { quoted: m })
+            }
+        }
         setLimit(m, db)
 
     // ============================================================
