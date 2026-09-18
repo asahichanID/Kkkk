@@ -9,12 +9,13 @@ import { SholatTab } from './components/SholatTab';
 import { HdTestTab } from './components/HdTestTab';
 import { RpgTab } from './components/RpgTab';
 import { CaturTab } from './components/CaturTab';
+import { TebakBomTab } from './components/TebakBomTab';
 import { DownloadZipModal } from './components/DownloadZipModal';
 import { BotState, LogEntry, SystemStats } from './types';
 import { safeFetchJson, safeJsonParse } from './lib/safeJson';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'control' | 'logs' | 'config' | 'sholat' | 'hdTest' | 'rpg' | 'catur' | 'guide'>('control');
+  const [activeTab, setActiveTab] = useState<'control' | 'logs' | 'config' | 'sholat' | 'hdTest' | 'rpg' | 'catur' | 'tebakbom' | 'guide'>('control');
   const [isDownloadZipOpen, setIsDownloadZipOpen] = useState(false);
   const [botState, setBotState] = useState<BotState>({
     status: 'stopped',
@@ -39,11 +40,14 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Auto-switch ke tab catur jika ada param tab=catur atau room=XXXX
+  // Auto-switch ke tab catur atau tebakbom jika ada param tab
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('tab') === 'catur' || params.has('room')) {
+    const tabParam = params.get('tab');
+    if (tabParam === 'catur' || params.has('room')) {
       setActiveTab('catur');
+    } else if (tabParam === 'tebakbom' || tabParam === 'bom' || tabParam === 'tb') {
+      setActiveTab('tebakbom');
     }
   }, []);
 
@@ -326,6 +330,8 @@ export default function App() {
         {activeTab === 'rpg' && <RpgTab />}
 
         {activeTab === 'catur' && <CaturTab />}
+
+        {activeTab === 'tebakbom' && <TebakBomTab />}
 
         {activeTab === 'guide' && (
           <GuideTab onOpenDownloadZip={() => setIsDownloadZipOpen(true)} />

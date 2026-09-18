@@ -6,6 +6,13 @@
       "score": 1500,
       "gamesCount": 1,
       "lastUpdated": 1789177913120
+    },
+    "628123456789@s.whatsapp.net": {
+      "id": "628123456789@s.whatsapp.net",
+      "name": "Tester",
+      "score": 1000,
+      "gamesCount": 1,
+      "lastUpdated": 1789741392751
     }
   },
   "claimedCodes": {
@@ -15,5 +22,12 @@
       "claimedAt": 1789177913120
     }
   },
-  "activeCodes": {}
+  "activeCodes": {
+    "TB-1000-75A4964851": {
+      "score": 1000,
+      "createdAt": 1789741392750,
+      "expiresAt": 1789827792750,
+      "used": false
+    }
+  }
 }

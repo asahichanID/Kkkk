@@ -251,8 +251,16 @@ const naze = async (naze, m, msg, store) => {
 		if (isBotSentMessage(m.id || m.key?.id)) {
 			return;
 		}
+		const isSenderBot = Boolean(
+			m.key?.fromMe ||
+			m.fromMe ||
+			m.isBot ||
+			m.sender === botNumber ||
+			m.sender === naze.decodeJid(naze.user?.lid || '')
+		);
 		const hasActiveMath = Boolean(mathSessionManager?.hasSession(m.chat));
-		if (!hasActiveMath && (m.fromMe && m.isBot)) {
+		// 🛡️ BOT ISOLATION: Abaikan pesan dari bot lain (mencegah loop antar bot & anti-spam trigger)
+		if (!isCreator && !hasActiveMath && isSenderBot) {
 			return;
 		}
 		const isLockAction = Boolean(
@@ -480,12 +488,15 @@ const naze = async (naze, m, msg, store) => {
 			}
 			
 		
-		// Auto Read
+		// Auto Read & Console Log Activity
 		if (m.message && m.key.remoteJid !== 'status@broadcast') {
-			if ((set.autoread && naze.public) || isCreator) {
+			if (set.autoread && naze.public) {
 				naze.readMessages([m.key]);
-				if (set.log) console.log(chalk.black(chalk.whiteBright('[CHAT]:'), chalk.greenBright(`${locale_day} ${date} (${date_time})`), chalk.hex('#AF26EB')(m.key.id) + '\n' + chalk.hex('#00EAD3')(budy || m.type) + '\n' + chalk.cyanBright('[FROM]:'), chalk.yellowBright(m.pushName || (isCreator ? 'Bot' : 'Anonim')), chalk.hex('#FF449F')(m.sender.split('@')[0]), chalk.hex('#FF5700')(m.isGroup ? m.metadata.subject : m.chat.endsWith('@newsletter') ? 'Newsletter' : 'Private Chat'), chalk.blueBright('(' + m.chat + ')')));
-				else console.log(chalk.black(chalk.bgWhite('[CHAT]:'), chalk.bgGreen(`${locale_day} ${date} (${date_time})`), chalk.bgHex('#AF26EB')(m.key.id) + '\n' + chalk.bgHex('#00EAD3')(budy || m.type) + '\n' + chalk.bgCyanBright('[FROM]:'), chalk.bgYellow(m.pushName || (isCreator ? 'Bot' : 'Anonim')), chalk.bgHex('#FF449F')(m.sender), chalk.bgHex('#FF5700')(m.isGroup ? m.metadata.subject : m.chat.endsWith('@newsletter') ? 'Newsletter' : 'Private Chat'), chalk.bgBlue('(' + m.chat + ')')));
+			}
+			if (set.log) {
+				console.log(chalk.black(chalk.whiteBright('[CHAT]:'), chalk.greenBright(`${locale_day} ${date} (${date_time})`), chalk.hex('#AF26EB')(m.key.id) + '\n' + chalk.hex('#00EAD3')(budy || m.type) + '\n' + chalk.cyanBright('[FROM]:'), chalk.yellowBright(m.pushName || (isCreator ? 'Owner' : 'User')), chalk.hex('#FF449F')(m.sender.split('@')[0]), chalk.hex('#FF5700')(m.isGroup ? (m.metadata?.subject || 'Grup') : m.chat.endsWith('@newsletter') ? 'Newsletter' : 'Private Chat'), chalk.blueBright('(' + m.chat + ')')));
+			} else {
+				console.log(chalk.black(chalk.bgWhite('[CHAT]:'), chalk.bgGreen(`${locale_day} ${date} (${date_time})`), chalk.bgHex('#AF26EB')(m.key.id) + '\n' + chalk.bgHex('#00EAD3')(budy || m.type) + '\n' + chalk.bgCyanBright('[FROM]:'), chalk.bgYellow(m.pushName || (isCreator ? 'Owner' : 'User')), chalk.bgHex('#FF449F')(m.sender), chalk.bgHex('#FF5700')(m.isGroup ? (m.metadata?.subject || 'Grup') : m.chat.endsWith('@newsletter') ? 'Newsletter' : 'Private Chat'), chalk.bgBlue('(' + m.chat + ')')));
 			}
 		}
 		
@@ -510,15 +521,17 @@ const naze = async (naze, m, msg, store) => {
 				cmdAdd(db.hit);
 				cmdAddHit(db.hit, command);
 			}
-			// 🛡️ BOT-GUARD: Smart Anti-Spam & Auto-Freeze (selalu aktif untuk mencegah ban WA saat bot berjalan lama)
-			const spamCheck = antiSpam.check(m.sender, isCreator);
-			if (!spamCheck.allowed) {
-				console.log(chalk.bgRed('[ SPAM BLOCKED ] : '), chalk.black(chalk.bgHex('#1CFFF7')(`From -> ${m.sender}`), chalk.bgHex('#E015FF')(` In ${m.isGroup ? m.chat : 'Private Chat'}`)));
-				if (spamCheck.shouldWarn && spamCheck.warnMsg) {
-					return m.reply(spamCheck.warnMsg);
+			// 🛡️ BOT-GUARD: Smart Anti-Spam & Auto-Freeze (selalu aktif dan tidak ter-trigger oleh bot lain)
+			if (set.antispam !== false) {
+				const spamCheck = antiSpam.check(m.sender, isCreator, isSenderBot);
+				if (!spamCheck.allowed) {
+					console.log(chalk.bgRed('[ SPAM BLOCKED ] : '), chalk.black(chalk.bgHex('#1CFFF7')(`From -> ${m.sender}`), chalk.bgHex('#E015FF')(` In ${m.isGroup ? m.chat : 'Private Chat'}`)));
+					if (!isSenderBot && spamCheck.shouldWarn && spamCheck.warnMsg) {
+						return m.reply(spamCheck.warnMsg);
+					}
+					// Silent drop jika spam berulang atau dari bot lain agar bot tidak membalas terus dan terhindar dari ban WA
+					return;
 				}
-				// Silent drop jika spam berulang agar bot tidak membalas terus dan terhindar dari ban WA
-				return;
 			}
 		}
 		
@@ -585,7 +598,7 @@ const naze = async (naze, m, msg, store) => {
 			await naze.sendMessage(room.o, { text: str, mentions: parseMention(str) }, { quoted: m })
 			if (isTie || isWin) delete tictactoe[room.id]
 		}
-		
+
 		// Suit PvP
 		let roof = Object.values(suit).find(roof => roof.id && roof.status && [roof.p, roof.p2].includes(m.sender))
 		if (roof) {
@@ -920,17 +933,9 @@ const naze = async (naze, m, msg, store) => {
 		}
 		
 	// Afk (dengan proteksi anti-spam, anti-loop, dan isolasi pesan bot)
-	const isSenderBot = Boolean(
-		m.key?.fromMe ||
-		m.fromMe ||
-		m.isBot ||
-		m.sender === botNumber ||
-		m.sender === naze.decodeJid(naze.user?.lid || '')
-	);
-
 	if (!isSenderBot && db.users && db.users[m.sender]) {
-		// 1. Trainer Returns: Pengguna kembali dari AFK
-		if (db.users[m.sender].afkTime > -1) {
+		// 1. Trainer Returns: Pengguna kembali dari AFK (hanya jika pesan bukan command afk)
+		if (db.users[m.sender].afkTime > -1 && command !== 'afk') {
 			const user = db.users[m.sender];
 			const previousAfkTime = user.afkTime;
 			const previousAfkReason = user.afkReason || 'Istirahat';
@@ -938,6 +943,8 @@ const naze = async (naze, m, msg, store) => {
 			// Reset status AFK SECARA LANGSUNG sebelum reply untuk mencegah race condition
 			user.afkTime = -1;
 			user.afkReason = '';
+			user.afkMentioned = false;
+			user.afkMentionedChats = {};
 			global._dbDirty = true;
 
 			const returnuma = getUmaQuote(pickRandom);
@@ -974,9 +981,6 @@ const naze = async (naze, m, msg, store) => {
 		);
 
 		if (mentionUser.length > 0) {
-			global._afkNotifyCooldown ??= new Map();
-			const now = Date.now();
-
 			for (let jid of mentionUser) {
 				let user = db.users[jid];
 				if (!user) continue;
@@ -984,11 +988,13 @@ const naze = async (naze, m, msg, store) => {
 				let afkTime = user.afkTime;
 				if (!afkTime || afkTime < 0) continue;
 
-				// Rate limit: maksimal 1 notifikasi AFK per user per chat dalam 30 detik
-				const cdKey = `${m.chat}:${jid}`;
-				const lastNotified = global._afkNotifyCooldown.get(cdKey) || 0;
-				if (now - lastNotified < 30000) continue;
-				global._afkNotifyCooldown.set(cdKey, now);
+				// Notifikasi AFK muncul HANYA 1 KALI saat pengguna yang AFK disebut!
+				// Setelahnya GADA (tidak dikirim lagi) jika ada yang menyebut pengguna AFK tersebut lagi.
+				user.afkMentionedChats ??= {};
+				if (user.afkMentionedChats[m.chat]) continue;
+				user.afkMentionedChats[m.chat] = true;
+				user.afkMentioned = true;
+				global._dbDirty = true;
 
 				let reason = user.afkReason || 'Sedang beristirahat';
 				const afkuma = getUmaQuote(pickRandom);
@@ -1012,13 +1018,6 @@ const naze = async (naze, m, msg, store) => {
 `.trim(), {
 					mentions: [jid]
 				});
-			}
-
-			// Prune cooldown map jika sudah terlalu banyak entri
-			if (global._afkNotifyCooldown.size > 500) {
-				for (const [k, v] of global._afkNotifyCooldown.entries()) {
-					if (now - v > 60000) global._afkNotifyCooldown.delete(k);
-				}
 			}
 		}
 	}
@@ -5117,12 +5116,24 @@ break
 				m.reply(`Berhasil delete session room tictactoe !`)
 			}
 			break
-			case 'tebakbom': {
+			case 'tebakbom':
+			case 'tb':
+			case 'minesweeper': {
 				try {
-					await kirimTebakBom(naze, m.chat, m.sender);
+					await kirimTebakBom(naze, m.chat, m.sender, pushName);
 				} catch (e) {
 					console.error('[TEBAKBOM]', e);
 					m.reply('❌ Gagal membuka game tebak bom: ' + (e?.message || e));
+				}
+			}
+			break
+			case 'deltebakbom':
+			case 'deltb': {
+				if (tebakbom && tebakbom[m.chat]) {
+					delete tebakbom[m.chat];
+					m.reply('✅ Berhasil menghapus sesi game Tebak Bom di chat ini!');
+				} else {
+					m.reply('Tidak ada sesi game Tebak Bom yang sedang aktif di chat ini.');
 				}
 			}
 			break

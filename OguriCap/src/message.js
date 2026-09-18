@@ -65,17 +65,24 @@ reloadHandler();
 // - Error di dalam handler ditangkap di sini (tidak lagi jadi
 //   unhandled rejection yang berisiko menjatuhkan bot).
 async function dispatchNazeHandler(naze, m, msg, store) {
-	// 🛡️ ANTI SELF-REPLY: Jangan pernah memproses pesan yang dikirim oleh bot ini sendiri
+	// 🛡️ ANTI SELF-REPLY & BOT ISOLATION: Jangan pernah memproses pesan yang dikirim oleh proses bot ini
 	if (isBotSentMessage(m.id || msg?.key?.id)) return;
+	const senderNum = m.sender ? m.sender.split('@')[0] : '';
+	const isOwner = Boolean(
+		global.ownerNumber?.some(o => {
+			const clean = String(o).replace(/[^0-9]/g, '');
+			return clean && clean === senderNum;
+		})
+	);
 	const hasActiveMath = Boolean(global.__oguriMathSessionManager?.hasSession(m.chat));
-	if (!hasActiveMath && m.isBot && m.fromMe) return;
+	if (!isOwner && !hasActiveMath && m.fromMe && isBotSentMessage(m.id || msg?.key?.id)) return;
 	const isButtonAction = Boolean(
 		m.interactiveId?.startsWith('lock_') ||
 		m.interactiveId?.startsWith('unlock_') ||
 		m.body?.startsWith('lock_') ||
 		m.body?.startsWith('unlock_')
 	);
-	if (!hasActiveMath && m.fromMe && !m.isCmd && !isButtonAction) return;
+	if (!hasActiveMath && m.fromMe && !m.isCmd && !isButtonAction && !isOwner) return;
 
 	const slot = await acquireCommandSlot(m.sender, m.chat, m);
 	if (!slot || slot.ok === false) return;
@@ -438,6 +445,8 @@ if (!Array.isArray(bank.aktivitas))
 			ban: false,
 			afkTime: -1,
 			afkReason: '',
+			afkMentioned: false,
+			afkMentionedChats: {},
 			register: false,
 			limit: limitUser,
 			limitNotified: false,
@@ -1479,9 +1488,7 @@ async function Serialize(naze, msg, store) {
 			m.id?.startsWith('BAE5') ||
 			m.id?.startsWith('HSK') ||
 			m.id?.startsWith('B1E') ||
-			m.id?.startsWith('3EB0') ||
-			m.id?.includes('STARFALL') ||
-			([12, 16, 18, 20, 22].includes(m.id?.length) && /^[A-Z0-9]+$/i.test(m.id) && m.fromMe)
+			m.id?.startsWith('B24E')
 		);
 		m.isGroup = m.chat.endsWith('@g.us')
 		if (!m.isGroup && m.chat.endsWith('@lid')) m.chat = naze.findJidByLid(m.chat, store) || m.chat;

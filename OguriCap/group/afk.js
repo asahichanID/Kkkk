@@ -18,6 +18,8 @@ export const afk = async (
 		let user = db?.users?.[m.sender]
 		if (!user) return m.reply('❌ Data pengguna tidak ditemukan.')
 		user.afkTime = +new Date
+		user.afkMentioned = false
+		user.afkMentionedChats = {}
 		if (global._dbDirty !== undefined) global._dbDirty = true
 		const uma = getUmaQuote()
 		const umaName = [

@@ -1,11 +1,11 @@
 import React from 'react';
-import { Bot, RefreshCw, Settings, ShieldCheck, Terminal, Smartphone, Moon, Sparkles, Download, Swords } from 'lucide-react';
+import { Bot, RefreshCw, Settings, ShieldCheck, Terminal, Smartphone, Moon, Sparkles, Download, Swords, Bomb } from 'lucide-react';
 import { BotState } from '../types';
 
 interface NavbarProps {
   state: BotState;
-  activeTab: 'control' | 'logs' | 'config' | 'sholat' | 'hdTest' | 'rpg' | 'catur' | 'guide';
-  setActiveTab: (tab: 'control' | 'logs' | 'config' | 'sholat' | 'hdTest' | 'rpg' | 'catur' | 'guide') => void;
+  activeTab: 'control' | 'logs' | 'config' | 'sholat' | 'hdTest' | 'rpg' | 'catur' | 'tebakbom' | 'guide';
+  setActiveTab: (tab: 'control' | 'logs' | 'config' | 'sholat' | 'hdTest' | 'rpg' | 'catur' | 'tebakbom' | 'guide') => void;
   onRefresh: () => void;
   isRefreshing: boolean;
   onOpenDownloadZip: () => void;
@@ -197,6 +197,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               Catur 3D
             </button>
             <button
+              id="tab-tebakbom-btn"
+              onClick={() => setActiveTab('tebakbom')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                activeTab === 'tebakbom'
+                  ? 'bg-sky-100 text-sky-950 shadow-xs font-bold ring-1 ring-sky-400'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              <Bomb className="w-3.5 h-3.5 text-sky-500" />
+              Tebak Bom
+            </button>
+            <button
               id="tab-guide-btn"
               onClick={() => setActiveTab('guide')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
@@ -279,6 +291,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             }`}
           >
             ♟️ Catur 3D
+          </button>
+          <button
+            id="tab-tebakbom-mobile-btn"
+            onClick={() => setActiveTab('tebakbom')}
+            className={`px-2 py-1 rounded-md text-xs font-medium shrink-0 ${
+              activeTab === 'tebakbom' ? 'bg-sky-100 text-sky-950 font-bold ring-1 ring-sky-400' : 'text-slate-600'
+            }`}
+          >
+            💣 Tebak Bom
           </button>
           <button
             onClick={() => setActiveTab('logs')}

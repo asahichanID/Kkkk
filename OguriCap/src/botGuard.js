@@ -270,12 +270,16 @@ export function installOutgoingGuard(naze) {
 
 /**
  * Validasi ketat pesan masuk dari user untuk mendeteksi spam/anomali.
+ * Pesan dari bot lain TIDAK PERNAH memicu respon/peringatan anti-spam.
  * @param {string} sender 
  * @param {boolean} isCreator 
+ * @param {boolean} isBot
  * @returns {{ allowed: boolean, shouldWarn: boolean, warnMsg?: string, isFrozen?: boolean }}
  */
-export function checkIncomingSpam(sender, isCreator = false) {
+export function checkIncomingSpam(sender, isCreator = false, isBot = false) {
 	if (isCreator) return { allowed: true, shouldWarn: false };
+	// Pesan bot lain di-drop tanpa respon teks apapun agar tidak terjadi loop respon antar bot
+	if (isBot) return { allowed: false, shouldWarn: false, isFrozen: false };
 
 	const now = Date.now();
 	let user = userSpamStore.get(sender) || { lastTime: 0, warnCount: 0, freezeUntil: 0 };
@@ -283,15 +287,15 @@ export function checkIncomingSpam(sender, isCreator = false) {
 	// 1. Jika user sedang dibekukan karena spam masif
 	if (now < user.freezeUntil) {
 		const sisa = Math.ceil((user.freezeUntil - now) / 1000);
-		// Diam total, tidak merespons sama sekali
+		// Diam total, tidak merespons sama sekali (silent drop)
 		return { allowed: false, shouldWarn: false, isFrozen: true, remaining: sisa };
 	}
 
 	const elapsed = now - user.lastTime;
 	user.lastTime = now;
 
-	// Cooldown batas aman antar command: 1.2 detik (responsif namun anti-flood)
-	if (elapsed < 1200) {
+	// Cooldown batas aman antar command: 2.5 detik (sesuai peringatan "jeda minimal 3 detik")
+	if (elapsed < 2500) {
 		user.warnCount = (user.warnCount || 0) + 1;
 
 		// 4x pelanggaran berturut-turut -> FREEZE 60 detik!
@@ -318,12 +322,12 @@ export function checkIncomingSpam(sender, isCreator = false) {
 			};
 		}
 
-		// Pelanggaran ke-2 dan ke-3: SILENT DROP (tidak merespons, abaikan pesan)
+		// Pelanggaran ke-2 dan ke-3: SILENT DROP (tidak merespons, abaikan pesan agar tidak spam grup)
 		userSpamStore.set(sender, user);
 		return { allowed: false, shouldWarn: false, isFrozen: false };
 	}
 
-	// Jika user tertib (>2.5 detik), reset counter peringatan
+	// Jika user tertib (>= 2.5 detik), reset counter peringatan
 	user.warnCount = 0;
 	userSpamStore.set(sender, user);
 	return { allowed: true, shouldWarn: false };

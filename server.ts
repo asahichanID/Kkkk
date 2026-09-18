@@ -8,6 +8,8 @@ import { sanitizeSairidev } from './scripts/clean-sairidev.js';
 import { initRpgServer, getRpgHtml } from './game/rpg/index.js';
 import { initUlarTanggaWs, UlarTanggaManager } from './OguriCap/game/ulartanggaWs.js';
 import { getUlarTanggaHtml } from './OguriCap/game/ulartangga.js';
+import { buildTebakBomHTML } from './OguriCap/game/tebakbom.js';
+import { getTopLeaderboard } from './OguriCap/game/tebakbomData.js';
 import { CaturManager } from './OguriCap/game/caturWs.js';
 import {
   getSholatConfig,
@@ -1057,6 +1059,17 @@ app.get('/api/system/stats', (req, res) => {
 app.get('/rpg', (req, res) => {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(getRpgHtml());
+});
+
+// 3D Tebak Bom HTML Web Client endpoint
+app.get(['/tebakbom', '/tb', '/bom', '/minesweeper'], (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  try {
+    const top3 = getTopLeaderboard(3);
+    res.send(buildTebakBomHTML(top3));
+  } catch (e) {
+    res.send(buildTebakBomHTML([]));
+  }
 });
 
 // 3D Ular Tangga HTML Web Client endpoint

@@ -159,6 +159,28 @@ export function verifyAndClaimCode(codeStr, jid, userName = 'Player') {
 }
 
 /**
+ * Mencatat skor kemenangan langsung ke database leaderboard tebak bom
+ */
+export function recordWinScore(jid, userName = 'Player', score = 1000) {
+	loadDB()
+	if (!data.leaderboard[jid]) {
+		data.leaderboard[jid] = {
+			id: jid,
+			name: userName,
+			score: 0,
+			gamesCount: 0,
+			lastUpdated: Date.now()
+		}
+	}
+	data.leaderboard[jid].score += score
+	data.leaderboard[jid].gamesCount = (data.leaderboard[jid].gamesCount || 0) + 1
+	data.leaderboard[jid].name = userName || data.leaderboard[jid].name
+	data.leaderboard[jid].lastUpdated = Date.now()
+	saveDB()
+	return data.leaderboard[jid]
+}
+
+/**
  * Mengambil daftar leaderboard teratas
  */
 export function getTopLeaderboard(limit = 10) {
