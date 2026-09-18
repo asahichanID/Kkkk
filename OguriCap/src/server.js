@@ -10,6 +10,10 @@ const app = express();
 const server = createServer(app);
 const PORT = process.env.PORT || process.env.SERVER_PORT || 3000;
 
+server.on('error', (err) => {
+	console.log('[INTERNAL BOT SERVER NOTICE]', err.message);
+});
+
 // Mount WebSocket RPG Server
 try {
 	initRpgServer(server);

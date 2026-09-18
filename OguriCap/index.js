@@ -233,6 +233,9 @@ print('Node.js', process.version);
 print('Baileys', `v${require('./package.json').dependencies.baileys}`);
 print('Date & Time', new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta', hour12: false }));
 console.log(chalk.green.bold('╚' + ('═'.repeat(30))));
+server.on('error', (err) => {
+	console.log(chalk.yellow('[INTERNAL HTTP SERVER NOTICE]'), err?.message || err);
+});
 server.listen(PORT, () => {
 	console.log('App listened on port', PORT);
 });

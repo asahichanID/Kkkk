@@ -67,7 +67,10 @@ const DEFAULTS = {
 
 function envOverride(providerName, suffix) {
 	const key = `APIGLOBAL_${providerName.toUpperCase()}_${suffix}`;
-	const value = process.env[key];
+	let value = process.env[key];
+	if (!value && suffix === 'APIKEY') {
+		value = process.env[`APIGLOBAL_${providerName.toUpperCase()}_KEY`];
+	}
 	return value && value.trim() ? value.trim() : null;
 }
 

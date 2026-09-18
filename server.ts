@@ -25,7 +25,7 @@ import sharp from 'sharp';
 import { ZipArchive } from 'archiver';
 
 const app = express();
-const PORT = 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 const ROOT_DIR = process.cwd();
 const OGURI_DIR = path.join(ROOT_DIR, 'OguriCap');
 
@@ -53,6 +53,7 @@ interface LogEntry {
 }
 
 let botProcess: ChildProcess | null = null;
+let isIntentionalStop = false;
 let logIdCounter = 1;
 const logHistory: LogEntry[] = [];
 const MAX_LOGS = 1000;
@@ -227,6 +228,7 @@ function startBot(options?: { botNumber?: string; customCode?: string }) {
     }
   }
 
+  isIntentionalStop = false;
   addLog('system', `[MANAGER] Memulai OguriCap Bot (Nomor: ${botNumber || 'Auto/Session'}, Mode: ${customCode ? `Custom (${customCode})` : 'Standar Resmi WhatsApp'})...`);
   broadcastEvent('status', botState);
 
@@ -278,12 +280,32 @@ function startBot(options?: { botNumber?: string; customCode?: string }) {
 
     botProcess.on('exit', (code, signal) => {
       addLog('system', `[MANAGER] Proses bot berhenti (code: ${code}, signal: ${signal})`);
+      const hadSession = checkHasSession();
+      const wasRunning = botState.status === 'connected' || botState.status === 'starting' || botState.status === 'reconnecting';
+      
       botProcess = null;
-      botState.status = 'stopped';
       botState.pid = null;
       botState.startedAt = null;
-      botState.hasSession = checkHasSession();
-      broadcastEvent('status', botState);
+      botState.hasSession = hadSession;
+
+      if (isIntentionalStop) {
+        botState.status = 'stopped';
+        isIntentionalStop = false;
+        broadcastEvent('status', botState);
+      } else if (code !== 0 && (wasRunning || hadSession)) {
+        // Unexpected exit: auto-reconnect with 3s backoff to ensure long-running bot stability
+        botState.status = 'reconnecting';
+        broadcastEvent('status', botState);
+        addLog('system', '[MANAGER] Terjadi penghentian proses tak terduga, mencoba menyambungkan ulang bot dalam 3 detik...');
+        setTimeout(() => {
+          if (!botProcess && !isIntentionalStop) {
+            startBot();
+          }
+        }, 3000);
+      } else {
+        botState.status = 'stopped';
+        broadcastEvent('status', botState);
+      }
     });
 
     return { success: true, message: 'Bot started', pid: botProcess.pid };
@@ -297,6 +319,7 @@ function startBot(options?: { botNumber?: string; customCode?: string }) {
 }
 
 function stopBot() {
+  isIntentionalStop = true;
   if (!botProcess || botProcess.killed) {
     botState.status = 'stopped';
     botState.pid = null;
@@ -1165,7 +1188,48 @@ async function startServer() {
 
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`OguriCap Bot Manager Server running on http://0.0.0.0:${PORT}`);
+    
+    // Auto-start bot on server launch if session exists or configured in ENV (Hostless / Cloud persistence)
+    const shouldAutoStart = checkHasSession() || process.env.AUTO_START_BOT === 'true' || Boolean(process.env.BOT_NUMBER);
+    if (shouldAutoStart) {
+      console.log('[AUTO-START] Sesi WhatsApp / konfigurasi terdeteksi, mengaktifkan bot WhatsApp secara otomatis...');
+      setTimeout(() => {
+        startBot({
+          botNumber: process.env.BOT_NUMBER,
+          customCode: process.env.CUSTOM_PAIRING_CODE,
+        });
+      }, 1500);
+    }
   });
+
+  // Graceful shutdown handling for Hostless Cloud / Container platforms
+  let isShuttingDown = false;
+  const gracefulShutdown = (signal: string) => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.log(`[SHUTDOWN] Menerima sinyal ${signal}. Menutup server dan bot process secara bersih...`);
+    
+    isIntentionalStop = true;
+    if (botProcess && !botProcess.killed) {
+      try {
+        botProcess.kill('SIGTERM');
+      } catch {}
+    }
+
+    httpServer.close(() => {
+      console.log('[SHUTDOWN] HTTP & WebSocket server berhasil ditutup.');
+      process.exit(0);
+    });
+
+    // Fallback force exit setelah 5 detik
+    setTimeout(() => {
+      console.warn('[SHUTDOWN] Force exit timeout triggered.');
+      process.exit(0);
+    }, 5000).unref();
+  };
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 }
 
 startServer();
